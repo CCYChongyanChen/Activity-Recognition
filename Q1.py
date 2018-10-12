@@ -77,11 +77,11 @@ def sliding_win(DATA):
         dataset_frame_var=np.var(dataset_frame,axis=0)
         dataset_frame_min=np.min(dataset_frame,axis=0)
         dataset_frame_max=np.max(dataset_frame,axis=0)
-#        dataset_frame_ptp=np.ptp(dataset_frame,axis=0)
-#        dataset_frame_cv=np.mean(dataset_frame,axis=0)/np.std(dataset_frame,axis=0)
+        dataset_frame_ptp=np.ptp(dataset_frame,axis=0)
+        dataset_frame_cv=np.mean(dataset_frame,axis=0)/np.std(dataset_frame,axis=0)
 
 #        ,dataset_frame_min,dataset_frame_max,dataset_frame_ptp,dataset_frame_cv
-        dataset_frame_features=np.hstack((dataset_frame_var,dataset_frame_mean))
+        dataset_frame_features=np.hstack((dataset_frame_var,dataset_frame_mean,dataset_frame_min,dataset_frame_max,dataset_frame_ptp,dataset_frame_cv))
         if counter==0:
             dataset_feature_vector=dataset_frame_features
         else:
@@ -93,19 +93,19 @@ def sliding_win(DATA):
 
 if __name__ == '__main__':
 
-    dance_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\dance.csv')
+    dance_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/dance.csv')
     dance_data=dance_data.iloc[554:-400,:]
     
-    walk_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\walk.csv')
+    walk_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/walk.csv')
     walk_data=walk_data.iloc[20072:-5077,:]
-    car_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\car.csv')
+    car_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/car.csv')
     car_data=car_data.iloc[5070:-5077,:]
     
-    run_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\run.csv')
+    run_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/run.csv')
     run_data=run_data.iloc[1479:-500,:]
-    upstair1_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\upstair1.csv')
+    upstair1_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/upstair1.csv')
     upstair1_data=upstair1_data.iloc[1300:-586,:]
-    upstair2_data= pd.read_csv('G:\\1st_semester\\activity_recognition\\a2\\Q1\\upstair2.csv')
+    upstair2_data= pd.read_csv('/home/chongyan/activity_recogntion/Activity-Recognition-master/upstair2.csv')
     upstair2_data=upstair2_data.iloc[200:,:]
     upstair_data=pd.concat([upstair1_data,upstair2_data])
 #    AX=run_data['accelerometerAccelerationX']#!!!
@@ -127,8 +127,8 @@ if __name__ == '__main__':
     
     
     All_Data=np.vstack((Dance,Walk,Car,Run,Upstair))
-    X=All_Data[:,:12]
-    Y=All_Data[:,-1]
+    X=All_Data[:,:17]
+    Y=All_Data[:,18]
     
     
     
@@ -140,7 +140,7 @@ if __name__ == '__main__':
     # discriminative -SVM
     # =============================================================================
     #10-FOLD Accuracy
-    kf = KFold(len(Y),n_folds=10,random_state=None, shuffle=False)#!!!!!!!!!!!!!!!!!!!!!!!
+    kf = KFold(len(Y),n_folds=10,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!
     SVM_average_acc=[]
     GNB_average_acc=[]
     RF_average_acc=[]
