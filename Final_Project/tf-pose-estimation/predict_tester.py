@@ -25,12 +25,16 @@ from tf_pose import common
 from tf_pose.estimator import TfPoseEstimator, BodyPart
 from tf_pose.networks import get_graph_path, model_wh
 def prediction(x):
-    rf2=joblib.load('rf.model')
+    rf2=joblib.load('clf.model')
     y=rf2.predict(x)
     return y
     
-def extract_frames(csv_path,video_path,output_path):
+def extract_frames(video_path, csv_path):
     fps_time = 0
+
+    # Read label time ranges
+    rawdata = pd.read_csv(csv_path, header=0)
+    rawdata.columns = ['start_time', 'end_time', 'label']
     
     cap = cv2.VideoCapture(video_path)
 
@@ -52,6 +56,9 @@ def extract_frames(csv_path,video_path,output_path):
     BODY_PARTS_INTEREST = { "Nose": 0, "Neck": 1, "RShoulder": 2, "RElbow": 3, "RWrist": 4,
                     "LShoulder": 5, "LElbow": 6, "LWrist": 7, "REye": 14,
                     "LEye": 15}
+
+    conf_matrix_labels = {'steering': 0, 'texting': 1, 'calling': 2, 'reading': 3, 'eating': 4}
+    conf_matrix = np.zeros((len(conf_matrix_labels),len(conf_matrix_labels)))
     
     # Save a pose to csv every n frames
     counter = 0
@@ -80,6 +87,8 @@ def extract_frames(csv_path,video_path,output_path):
         ret_val, image = cap.read()
     
         timestamp = cap.get(cv2.CAP_PROP_POS_MSEC)/1000.0
+
+        label = rawdata['label'][(timestamp > rawdata['start_time']) & (timestamp < rawdata['end_time'])]
         
         try:
             humans = e.inference(image, resize_to_default=(w > 0 and h > 0), upsample_size=2)
@@ -137,6 +146,12 @@ def extract_frames(csv_path,video_path,output_path):
             # Perform prediction
             predic=prediction(np.array([bodypart_locations]))
 
+            # Add to confusion matrix
+            if label.size != 0:
+                # Check if the current label has persisted over the past n frames
+                conf_matrix[conf_matrix_labels[label.values[0]], conf_matrix_labels[predic[0]]] += 1
+                print(conf_matrix)
+
         cv2.putText(image, "FPS: %f" % (1.0 / (time.time() - fps_time)), (10, 10),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         try:
             cv2.putText(image,"Prediction:"+str(predic), (10, 20),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -153,7 +168,6 @@ def extract_frames(csv_path,video_path,output_path):
     videoout.release()
 
 if __name__ == '__main__':
-    csv_path='../../../Work/videos/IMG_2431.csv'
-    video_path='../../../Work/videos/RealData/Chongyan.MOV'
-    output_path='poses2.csv'
-    extract_frames(csv_path,video_path,output_path)
+    video_path='../../../Work/videos/RealData/Ershad.MOV'
+    csv_path='../../../Work/videos/RealData/Ershad.csv'
+    extract_frames(video_path, csv_path)
