@@ -13,7 +13,6 @@ import pandas as pd
 from matplotlib.pyplot import specgram
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import KFold, ShuffleSplit
-from sklearn.model_selection import KFold as KF
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 from sklearn.externals import joblib
@@ -25,20 +24,16 @@ from sklearn.ensemble import RandomForestClassifier
 from tf_pose import common
 from tf_pose.estimator import TfPoseEstimator, BodyPart
 from tf_pose.networks import get_graph_path, model_wh
-def prediction(x):
-    rf2=joblib.load('../../../Work/Project/rf.model')
-    y=rf2.predict(x)
-    return y
 
 def Four_classifications(X,Y):
     print(len(Y))
     confmatrix = np.zeros((5,5))
-    kf = KF(len(Y),n_folds=10,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!!!
+    kf = KFold(n_splits=10,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!!!
     SVM_average_acc=[]
     GNB_average_acc=[]
     RF_average_acc=[]
     MLP_average_acc=[]
-    for train_index, test_index in kf:
+    for train_index, test_index in kf.split(Y):
         X_train, X_test = X[train_index], X[test_index]
         Y_train, Y_test = Y[train_index], Y[test_index]
         
@@ -51,7 +46,7 @@ def Four_classifications(X,Y):
         gnb.fit(X_train,Y_train)
         GNB_acc = gnb.score(X_test,Y_test)
         GNB_average_acc.append(GNB_acc)
-        
+        joblib.dump(gnb,'gnb.model')
         
         rf=RandomForestClassifier(n_estimators=100)
         rf.fit(X_train,Y_train)
@@ -64,7 +59,8 @@ def Four_classifications(X,Y):
         clf.fit(X_train, Y_train)
         predictions = clf.predict(X_test)
 #        print(confusion_matrix(Y_test, predictions))
-        confmatrix+= confusion_matrix(Y_test, predictions)      
+        confmatrix+= confusion_matrix(Y_test, predictions) 
+        joblib.dump(clf,'clf.model')     
     
         MLP_acc = clf.score(X_test,Y_test)
         MLP_average_acc.append(MLP_acc)
@@ -105,7 +101,7 @@ def extract_frames(csv_path,video_path,output_path):
     rawdata.columns = ['start_time', 'end_time', 'label']
     
     cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_MSEC, 170*1000)
+    #cap.set(cv2.CAP_PROP_POS_MSEC, 170*1000)
     #cap.set(cv2.CAP_PROP_POS_MSEC, 194*1000)
     
     # Setup model
@@ -126,7 +122,7 @@ def extract_frames(csv_path,video_path,output_path):
     # Save a pose to csv every n frames
     counter = 0
     ma_counter = 0
-    n = 10
+    n = 5
     ma_length = 5 # Length of the moving average
     part_weight = 1.0/ma_length # Weight of a part in the moving average
     last_label = ''
@@ -159,8 +155,10 @@ def extract_frames(csv_path,video_path,output_path):
         #    break
     
         label = rawdata['label'][(timestamp > rawdata['start_time']) & (timestamp < rawdata['end_time'])]
-    
-        humans = e.inference(image, resize_to_default=(w > 0 and h > 0), upsample_size=2)
+        try:
+            humans = e.inference(image, resize_to_default=(w > 0 and h > 0), upsample_size=2)
+        except:
+            break
         if len(humans) > 0:
             humans = [humans[0]]
 
@@ -205,24 +203,22 @@ def extract_frames(csv_path,video_path,output_path):
                 image = np.zeros(image.shape)
             image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
     
-            # Perform averaging and feature extraction
+            # Generate feature vector
             for idx, part in enumerate(bodypart_array):
-                bodypart_locations[idx*2] += part.x
-                bodypart_locations[idx*2+1] += part.y
+                bodypart_locations[idx*2] = part.x
+                bodypart_locations[idx*2+1] = part.y
 
+            # Add label and append to feature matrix
             if label.size != 0:
                 # Check if the current label has persisted over the past n frames
                 if last_label != label.values[0]:
                     counter = 0
-                    bodypart_locations = np.zeros(2*10)
                 else:
                     if counter == n:
-#                        print(label.values[0])
-                        out_data.loc[len(out_data), 'nose_x':'leye_y'] = bodypart_locations/n
-                        predic=prediction(np.array([bodypart_locations/n]))
+                        print(label.values[0])
+                        out_data.loc[len(out_data), 'nose_x':'leye_y'] = bodypart_locations
                         out_data.loc[len(out_data)-1, 'label'] = label.values[0]
                         counter = 0
-                        bodypart_locations = np.zeros(2*10)
                     else:
                         counter += 1
                 last_label = label.values[0]
@@ -237,15 +233,16 @@ def extract_frames(csv_path,video_path,output_path):
         if cv2.waitKey(1) == 27:
             break
     
-    #out_data.to_csv(output_path,index=False)
+    out_data.to_csv(output_path,index=False)
     cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    csv_path='../../../Work/videos/IMG_2431.csv'
+    csv_path='../../../Work/videos/RealData/Chongyan.csv'
     video_path='../../../Work/videos/RealData/Chongyan.MOV'
-    output_path='poses2.csv'
-    extract_frames(csv_path,video_path,output_path)
-    raw_poses = pd.read_csv('poses.csv', header=0)
+    output_path='../../../Work/Project/Chongyan_poses.csv'
+    #extract_frames(csv_path,video_path,output_path)
+
+    raw_poses = pd.read_csv(output_path, header=0)
     raw_poses.columns = ['nose_x', 'nose_y', 'neck_x', 'neck_y', 'rshoulder_x', 'rshoulder_y', 
          'relbow_x', 'relbow_y', 'rwrist_x', 'rwrist_y', 'lshoulder_x', 'lshoulder_y', 'lelbow_x', 'lelbow_y', 
         'lwrist_x', 'lwrist_y', 'reye_x', 'reye_y', 'leye_x', 'leye_y', 'label']
