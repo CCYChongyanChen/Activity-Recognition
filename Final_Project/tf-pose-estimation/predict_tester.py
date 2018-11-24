@@ -37,6 +37,7 @@ def extract_frames(video_path, csv_path):
     rawdata.columns = ['start_time', 'end_time', 'label']
     
     cap = cv2.VideoCapture(video_path)
+    #cap.set(cv2.CAP_PROP_POS_MSEC, 90*1000)
 
     frame_width = int(cap.get(3))
     frame_height = int(cap.get(4))
@@ -57,7 +58,7 @@ def extract_frames(video_path, csv_path):
                     "LShoulder": 5, "LElbow": 6, "LWrist": 7, "REye": 14,
                     "LEye": 15}
 
-    conf_matrix_labels = {'steering': 0, 'texting': 1, 'calling': 2, 'reading': 3, 'eating': 4}
+    conf_matrix_labels = {'steering': 0, 'texting': 1, 'calling_right': 2, 'calling_left': 3, 'reading': 4, 'eating': 5}
     conf_matrix = np.zeros((len(conf_matrix_labels),len(conf_matrix_labels)))
     
     # Save a pose to csv every n frames
@@ -82,6 +83,9 @@ def extract_frames(video_path, csv_path):
     
     if cap.isOpened() is False:
         print("Error opening video stream or file")
+
+    cv2.namedWindow('output',cv2.WINDOW_NORMAL) 
+    cv2.resizeWindow('output', 576,1024)
     
     while cap.isOpened():
         ret_val, image = cap.read()
@@ -139,9 +143,10 @@ def extract_frames(video_path, csv_path):
             image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
     
             # Generate feature vector
+            neck = bodypart_array[BODY_PARTS['Neck']]
             for idx, part in enumerate(bodypart_array):
-                bodypart_locations[idx*2] = part.x
-                bodypart_locations[idx*2+1] = part.y
+                bodypart_locations[idx*2] = part.x - neck.x
+                bodypart_locations[idx*2+1] = part.y - neck.y
 
             # Perform prediction
             predic=prediction(np.array([bodypart_locations]))
@@ -157,8 +162,8 @@ def extract_frames(video_path, csv_path):
             cv2.putText(image,"Prediction:"+str(predic), (10, 20),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         except:
             cv2.putText(image,"Prediction:", (10, 70),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        cv2.imshow('tf-pose-estimation result', image)
-        videoout.write(image)
+        cv2.imshow('output', image)
+        #videoout.write(image)
         fps_time = time.time()
         if cv2.waitKey(1) == 27:
             break
@@ -168,6 +173,6 @@ def extract_frames(video_path, csv_path):
     videoout.release()
 
 if __name__ == '__main__':
-    video_path='../../../Work/videos/RealData/Ershad.MOV'
-    csv_path='../../../Work/videos/RealData/Ershad.csv'
+    video_path='../../../Work/videos/RealData/Tim.MOV'
+    csv_path='../../../Work/videos/RealData/Tim.csv'
     extract_frames(video_path, csv_path)

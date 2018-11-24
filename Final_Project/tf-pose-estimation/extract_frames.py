@@ -27,7 +27,7 @@ from tf_pose.networks import get_graph_path, model_wh
 
 def Four_classifications(X,Y):
     print(len(Y))
-    confmatrix = np.zeros((5,5))
+    confmatrix = np.zeros((6,6))
     kf = KFold(n_splits=10,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!!!
     SVM_average_acc=[]
     GNB_average_acc=[]
@@ -54,7 +54,7 @@ def Four_classifications(X,Y):
         RF_average_acc.append(RF_acc)
         joblib.dump(rf,'rf.model')
 
-        clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(200, 250), 
+        clf = MLPClassifier(solver='lbfgs', alpha=1e-3, hidden_layer_sizes=(20, 20), 
                         random_state=1, verbose=False)
         clf.fit(X_train, Y_train)
         predictions = clf.predict(X_test)
@@ -146,6 +146,9 @@ def extract_frames(csv_path,video_path,output_path):
     
     if cap.isOpened() is False:
         print("Error opening video stream or file")
+
+    cv2.namedWindow('output',cv2.WINDOW_NORMAL) 
+    cv2.resizeWindow('output', 576,1024)
     
     while cap.isOpened():
         ret_val, image = cap.read()
@@ -204,9 +207,10 @@ def extract_frames(csv_path,video_path,output_path):
             image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
     
             # Generate feature vector
+            neck = bodypart_array[BODY_PARTS['Neck']]
             for idx, part in enumerate(bodypart_array):
-                bodypart_locations[idx*2] = part.x
-                bodypart_locations[idx*2+1] = part.y
+                bodypart_locations[idx*2] = part.x - neck.x
+                bodypart_locations[idx*2+1] = part.y - neck.y
 
             # Add label and append to feature matrix
             if label.size != 0:
@@ -220,7 +224,11 @@ def extract_frames(csv_path,video_path,output_path):
                         out_data.loc[len(out_data)-1, 'label'] = label.values[0]
                         counter = 0
                     else:
-                        counter += 1
+                        if label.values[0] == 'steering':
+                            counter += 0.5
+                            # We have too many steering labels (about twice as much)
+                        else:
+                            counter += 1
                 last_label = label.values[0]
 
         cv2.putText(image, "FPS: %f" % (1.0 / (time.time() - fps_time)), (10, 10),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
@@ -228,7 +236,7 @@ def extract_frames(csv_path,video_path,output_path):
             cv2.putText(image,"Prediction:"+str(predic), (10, 20),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         except:
             cv2.putText(image,"Prediction:", (10, 70),  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        cv2.imshow('tf-pose-estimation result', image)
+        cv2.imshow('output', image)
         fps_time = time.time()
         if cv2.waitKey(1) == 27:
             break
