@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Nov 27 21:10:58 2018
+
+@author: chongyan
+"""
+import os
+from sklearn.model_selection import KFold, ShuffleSplit
+from sklearn.cross_validation import KFold as KF
+from sklearn.metrics import accuracy_score, confusion_matrix
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
+from keras.models import Sequential, load_model
+from keras.layers import LSTM, Dense, Activation
+
+
+
+    
+file_name='/home/chongyan/activity_recognition/Final_project/Ershad.csv'
+sequence_length=10
+split=0.8
+df_= pd.read_csv(file_name, header=0)
+df_.columns = ['nose_x', 'nose_y', 'neck_x', 'neck_y', 'rshoulder_x', 'rshoulder_y', 
+     'relbow_x', 'relbow_y', 'rwrist_x', 'rwrist_y', 'lshoulder_x', 'lshoulder_y', 'lelbow_x', 'lelbow_y', 
+    'lwrist_x', 'lwrist_y', 'reye_x', 'reye_y', 'leye_x', 'leye_y', 'label']
+df_x=df_.iloc[:,:-1]
+df_y=df_.iloc[:,-1]
+
+df_y=df_y.replace('steering',0)
+df_y=df_y.replace('calling_left',1)
+df_y=df_y.replace('calling_right',1)
+df_y=df_y.replace('reading',2)
+df_y=df_y.replace('texting',3)
+df_y=df_y.replace('eating',4)
+data_all_ = np.array(df_x).astype(float)
+
+y_all_ =np.array([df_y]).T
+scaler = MinMaxScaler()
+data_all_ = scaler.fit_transform(data_all_)
+data_all=np.concatenate((data_all_,y_all_),axis=1)
+data = []
+for i in range(len(data_all) - sequence_length - 1):
+    data.append(data_all[i: i + sequence_length + 1])        
+reshaped_data = np.array(data).astype('float64')
+print(reshaped_data)
+#    np.random.shuffle(reshaped_data)
+
+
+x = reshaped_data[:,: ,:-1]
+y = reshaped_data[:,-1,-1]
+
+
+model=load_model('lstm')
+kf = KF(len(y),n_folds=10,random_state=None, shuffle=True)
+
+    
+    
+for train_index, test_index in kf:
+    X_train, X_test = x[train_index], x[test_index]
+    Y_train, Y_test = y[train_index], y[test_index]
+    X_train = np.reshape(X_train, (X_train.shape[0],X_train.shape[1], 20))
+    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 20))
+    
+    
+    predict_y = model.predict(X_test)
+    
+    predict_y = np.reshape(predict_y, (predict_y.size, ))
+#        predict_y = scaler.inverse_transform([[i] for i in predict_y])#???????????????????????
+#        predict_y = scaler.inverse_transform(predict_y)       
+#        test_y = scaler.inverse_transform(test_y)
+#    fig2 = plt.figure(2)
+    plt.plot(predict_y, 'r-')
+    plt.plot(Y_test, 'g:')
+    
+    plt.legend(['predict', 'true'])
+    plt.show()
