@@ -1,0 +1,11 @@
+start_time,end_time,label
+0,33,steering
+50,97,texting
+101,128,steering
+136,167,calling_right
+169,195,calling_left
+202,227,steering
+233,288,reading
+291,317,steering
+325,379,eating
+383,385,steering
