@@ -42,13 +42,13 @@ def Four_classifications(X,Y):
         RF_acc = rf.score(X_test,Y_test)
         RF_average_acc.append(RF_acc)
         joblib.dump(rf,'rf.model')
-        print(rf.classes_)
-        print(confusion_matrix(Y_test, rf.predict(X_test)))
 
         clf = MLPClassifier(solver='lbfgs', alpha=1e-3, hidden_layer_sizes=(20, 20), 
                         random_state=1, verbose=False)
         clf.fit(X_train, Y_train)
         predictions = clf.predict(X_test)
+        print(clf.classes_)
+        print(confusion_matrix(Y_test, predictions))
         #confmatrix+= confusion_matrix(Y_test, predictions) 
         joblib.dump(clf,'clf.model')     
     
@@ -104,12 +104,12 @@ def extract_test_train(feature_csvs, test_idx):
             current_activity = raw_poses[current_idx:current_idx+1][LABEL_COL].values[0][0]
 
             # Compute the end idx
-            if raw_poses[current_idx+WINDOW_SIZE-1:current_idx+WINDOW_SIZE][LABEL_COL].values[0][0] == current_activity:
+            activity_transition_points = raw_poses[current_idx:current_idx+WINDOW_SIZE][['label']]. \
+                ne(raw_poses[current_idx:current_idx+WINDOW_SIZE][['label']].shift().bfill()).astype(int)==1
+            if activity_transition_points.sum().values[0] == 0:
                 end_idx = current_idx+WINDOW_SIZE
                 next_idx = current_idx+WINDOW_OVERLAP
             else:
-                activity_transition_points = raw_poses[current_idx:current_idx+WINDOW_SIZE][['label']]. \
-                    ne(raw_poses[current_idx:current_idx+WINDOW_SIZE][['label']].shift().bfill()).astype(int)==1
                 end_idx = raw_poses[current_idx:current_idx+WINDOW_SIZE].index[activity_transition_points['label']][0]
                 next_idx = end_idx
 
@@ -120,7 +120,7 @@ def extract_test_train(feature_csvs, test_idx):
 
             # Compute the time dependent features
             window_time = (end_idx-current_idx)*FRAME_TIME
-            r_wrist_velocity_y = (curwnd_raw_poses_cropped['rwrist_y'].tail(1).values[0] - curwnd_raw_poses_cropped['rwrist_y'].head(1).values[0])/window_time
+            r_wrist_velocity_y = (curwnd_raw_poses_cropped['rwrist_y'] - curwnd_raw_poses_cropped['rwrist_y'].shift().bfill()).sum()/window_time
 
             # Add features to output
             out_idx = len(out_data)
@@ -152,6 +152,15 @@ if __name__ == '__main__':
     
     combined = train.append(test)
     combined.to_csv('feature.csv',index=False)
+
+    print(max(abs(combined[combined['label'] == 'steering']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'texting']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'calling_left']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'calling_right']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'reading']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'eating_to_mouth']['r_wrist_velocity_y'])))
+    print(max(abs(combined[combined['label'] == 'eating_to_lap']['r_wrist_velocity_y'])))
+
     all_inputdata = np.array(combined.loc[:, 'nose_x':'r_wrist_velocity_y'])
     target = np.array(combined.loc[:, 'label'])
     Four_classifications(all_inputdata,target)
