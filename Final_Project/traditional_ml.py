@@ -19,11 +19,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 
-def Four_classifications(X,Y):
+def Classifications_CV(X,Y):
     print(len(Y))
     confmatrix = np.zeros((7,7))
-    kf = KFold(n_splits=5,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!!!
-    SVM_average_acc=[]
+    kf = KFold(n_splits=2,random_state=None, shuffle=True)#!!!!!!!!!!!!!!!!!!!!!!!
     GNB_average_acc=[]
     RF_average_acc=[]
     MLP_average_acc=[]
@@ -42,18 +41,57 @@ def Four_classifications(X,Y):
         RF_acc = rf.score(X_test,Y_test)
         RF_average_acc.append(RF_acc)
         joblib.dump(rf,'rf.model')
+        print(rf.classes_)
+        print(confusion_matrix(Y_test, rf.predict(X_test)))
 
         clf = MLPClassifier(solver='lbfgs', alpha=1e-3, hidden_layer_sizes=(20, 20), 
                         random_state=1, verbose=False)
         clf.fit(X_train, Y_train)
         predictions = clf.predict(X_test)
-        print(clf.classes_)
-        print(confusion_matrix(Y_test, predictions))
+        
         #confmatrix+= confusion_matrix(Y_test, predictions) 
         joblib.dump(clf,'clf.model')     
     
         MLP_acc = clf.score(X_test,Y_test)
         MLP_average_acc.append(MLP_acc)
+        
+    print("GNB cross-validation Accuracy:",np.mean(GNB_average_acc))
+    print("RF cross-validation Accuracy:",np.mean(RF_average_acc))
+    print("MLP cross-validation Accuracy:",np.mean( MLP_average_acc))
+    print(confmatrix)
+
+def Classifications_LOO(X_train,Y_train, X_test, Y_test):
+    confmatrix = np.zeros((7,7))
+    GNB_average_acc=[]
+    RF_average_acc=[]
+    MLP_average_acc=[]
+    
+    gnb=GaussianNB()
+    gnb.fit(X_train,Y_train)
+    GNB_acc = gnb.score(X_test,Y_test)
+    GNB_average_acc.append(GNB_acc)
+    joblib.dump(gnb,'gnb.model')
+    
+    rf=RandomForestClassifier(n_estimators=100)
+    rf.fit(X_train,Y_train)
+    RF_acc = rf.score(X_test,Y_test)
+    RF_average_acc.append(RF_acc)
+    joblib.dump(rf,'rf.model')
+    print(rf.classes_)
+    print(confusion_matrix(Y_test, rf.predict(X_test)))
+
+    clf = MLPClassifier(solver='lbfgs', alpha=1e-3, hidden_layer_sizes=(100, 20), 
+                    random_state=1, verbose=False)
+    clf.fit(X_train, Y_train)
+    predictions = clf.predict(X_test)
+    print(clf.classes_)
+    print(confusion_matrix(Y_test, predictions))
+    
+    #confmatrix+= confusion_matrix(Y_test, predictions) 
+    joblib.dump(clf,'clf.model')     
+
+    MLP_acc = clf.score(X_test,Y_test)
+    MLP_average_acc.append(MLP_acc)
         
     print("GNB cross-validation Accuracy:",np.mean(GNB_average_acc))
     print("RF cross-validation Accuracy:",np.mean(RF_average_acc))
@@ -121,12 +159,14 @@ def extract_test_train(feature_csvs, test_idx):
             # Compute the time dependent features
             window_time = (end_idx-current_idx)*FRAME_TIME
             r_wrist_velocity_y = (curwnd_raw_poses_cropped['rwrist_y'] - curwnd_raw_poses_cropped['rwrist_y'].shift().bfill()).sum()/window_time
+            r_wrist_velocity_x = (curwnd_raw_poses_cropped['rwrist_x'] - curwnd_raw_poses_cropped['rwrist_x'].shift().bfill()).sum()/window_time
+            r_wrist_velocity = pow(pow(r_wrist_velocity_x, 2) + pow(r_wrist_velocity_y, 2), 0.5)
 
             # Add features to output
             out_idx = len(out_data)
             out_data.loc[out_idx, BODY_PARTS_TO_USE] = curwnd_raw_poses_cropped.tail(1).values[0]
             out_data.loc[out_idx, LABEL_COL] = current_activity
-            out_data.loc[out_idx, SECONDARY_FEATURES[0]] = curwnd_lr_wrist_dist.tail(1).values[0]
+            out_data.loc[out_idx, SECONDARY_FEATURES[0]] = max(curwnd_lr_wrist_dist)
             out_data.loc[out_idx, SECONDARY_FEATURES[1]] = curwnd_r_wrist_to_nose_dist.tail(1).values[0]
             out_data.loc[out_idx, SECONDARY_FEATURES[2]] = r_wrist_velocity_y
 
@@ -146,13 +186,14 @@ if __name__ == '__main__':
     video_paths=['../../../Work/videos/RealData/Chongyan.MOV', '../../../Work/videos/RealData/Ershad.MOV', '../../../Work/videos/RealData/Tim.MOV']
     feature_csvs=['../../Work/videos/RealData/Chongyan_features.csv', '../../Work/videos/RealData/Ershad_features.csv', '../../Work/videos/RealData/Tim_features.csv']
 
-    test, train = extract_test_train(feature_csvs, 2)
+    test, train = extract_test_train(feature_csvs, 0)
     print(test.shape)
     print(train.shape)
     
     combined = train.append(test)
     combined.to_csv('feature.csv',index=False)
 
+    print('r_wrist_velocity_y')
     print(max(abs(combined[combined['label'] == 'steering']['r_wrist_velocity_y'])))
     print(max(abs(combined[combined['label'] == 'texting']['r_wrist_velocity_y'])))
     print(max(abs(combined[combined['label'] == 'calling_left']['r_wrist_velocity_y'])))
@@ -161,6 +202,28 @@ if __name__ == '__main__':
     print(max(abs(combined[combined['label'] == 'eating_to_mouth']['r_wrist_velocity_y'])))
     print(max(abs(combined[combined['label'] == 'eating_to_lap']['r_wrist_velocity_y'])))
 
-    all_inputdata = np.array(combined.loc[:, 'nose_x':'r_wrist_velocity_y'])
-    target = np.array(combined.loc[:, 'label'])
-    Four_classifications(all_inputdata,target)
+    # print('r_wrist_velocity_x')
+    # print(max(abs(combined[combined['label'] == 'steering']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'texting']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'calling_left']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'calling_right']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'reading']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'eating_to_mouth']['r_wrist_velocity_x'])))
+    # print(max(abs(combined[combined['label'] == 'eating_to_lap']['r_wrist_velocity_x'])))
+
+    print('lr_wrist_dist')
+    print((abs(combined[combined['label'] == 'steering']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'texting']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'calling_left']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'calling_right']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'reading']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'eating_to_mouth']['lr_wrist_dist']).mean()))
+    print((abs(combined[combined['label'] == 'eating_to_lap']['lr_wrist_dist']).mean()))
+
+    start_feature = test.columns[0]
+    end_feature = test.columns[-2]
+    # all_inputdata = np.array(combined.loc[:, start_feature:end_feature])
+    # target = np.array(combined.loc[:, 'label'])
+    # Classifications_CV(all_inputdata,target)
+    Classifications_LOO(train.loc[:, start_feature:end_feature],train.loc[:, 'label'],
+        test.loc[:, start_feature:end_feature],test.loc[:, 'label'])
